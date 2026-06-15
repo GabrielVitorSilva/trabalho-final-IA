@@ -13,6 +13,16 @@ A interface gráfica foi feita com **Pygame**, mostrando o tabuleiro, o
 agente se movendo, as células visitadas/seguras/suspeitas e um painel
 lateral com percepções, ações e log de eventos.
 
+### Visual
+
+A interface usa um fundo em gradiente, células com cantos arredondados e
+um painel lateral organizado em "cards". Todos os ícones (ouro, agente e
+o "rosto" do Wumpus que aparece em células suspeitas) são desenhados na
+hora com formas geométricas do próprio Pygame (círculos, polígonos e
+linhas) — **nenhuma imagem externa é usada**, para manter o projeto sem
+dependências extras. O ouro tem um leve brilho pulsante e o agente uma
+animação sutil, só para dar um toque mais "vivo" à apresentação.
+
 ## 2. Objetivos do trabalho
 
 - Demonstrar um agente baseado em regras e inferência lógica simples.

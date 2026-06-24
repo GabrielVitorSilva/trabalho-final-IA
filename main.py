@@ -9,7 +9,7 @@
 #   python main.py --velocidade 5    (passos do agente por segundo)
 #
 # A janela abre em TELA CHEIA por padrao.
-# Controles: F = liga/desliga tela cheia | ESPACO = pausa | R = reinicia | ESC = sair
+# Controles: F = liga/desliga tela cheia | ESPACO = pausa | A = dispara flecha | R = reinicia | ESC = sair
 
 import sys
 import argparse
@@ -65,6 +65,9 @@ def main():
                 elif evento.key == pygame.K_f:
                     # Liga/desliga o modo tela cheia
                     interface.alternar_tela_cheia()
+                elif evento.key == pygame.K_a:
+                    # Tenta disparar a flecha se houver um alvo confiavel
+                    agente.tentar_disparo_manual()
                 elif evento.key == pygame.K_r:
                     # Reinicia o jogo. Se uma semente foi passada por
                     # argumento, soma 1 a cada reinicio (gera um mapa novo,

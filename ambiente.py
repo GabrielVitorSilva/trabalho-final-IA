@@ -47,12 +47,49 @@ class Ambiente:
             candidatos_wumpus = todas_celulas
         self.wumpus = candidatos_wumpus[0]
         todas_celulas.remove(self.wumpus)
+        self.wumpus_vivo = True
+        self.posicao_wumpus_morto = None
 
         # Sorteia as posicoes dos poços (nao podem ser a inicial nem vizinhas dela)
         candidatos_pocos = [c for c in todas_celulas if c not in vizinhos_inicio]
         self.rng.shuffle(candidatos_pocos)
         qtd = min(self.num_pocos, len(candidatos_pocos))
         self.pocos = set(candidatos_pocos[:qtd])
+
+    def matar_wumpus(self):
+        """Elimina o Wumpus e guarda a posicao onde ele morreu."""
+        if not self.wumpus_vivo:
+            return False
+        self.wumpus_vivo = False
+        self.posicao_wumpus_morto = self.wumpus
+        return True
+
+    def disparar_flecha(self, origem, direcao):
+        """
+        Dispara uma flecha em linha reta a partir de 'origem'.
+        A flecha percorre a linha ate a borda; se encontrar o Wumpus vivo,
+        ele e eliminado.
+        Retorna um par (acertou, posicao_acertada).
+        """
+        deslocamentos = {
+            "cima": (-1, 0),
+            "baixo": (1, 0),
+            "esquerda": (0, -1),
+            "direita": (0, 1),
+        }
+        if direcao not in deslocamentos:
+            return False, None
+
+        dl, dc = deslocamentos[direcao]
+        l, c = origem
+        while True:
+            l += dl
+            c += dc
+            if not (0 <= l < self.tamanho and 0 <= c < self.tamanho):
+                return False, None
+            if self.wumpus_vivo and (l, c) == self.wumpus:
+                self.matar_wumpus()
+                return True, (l, c)
 
     def _mundo_eh_valido(self):
         """
@@ -108,7 +145,7 @@ class Ambiente:
         for viz in vizinhos(pos, self.tamanho):
             if viz in self.pocos:
                 brisa = True
-            if viz == self.wumpus:
+            if self.wumpus_vivo and viz == self.wumpus:
                 cheiro = True
 
         brilho = (pos == self.ouro)
@@ -119,6 +156,6 @@ class Ambiente:
         """Retorna 'poco', 'wumpus' ou None, indicando se a posicao e letal."""
         if pos in self.pocos:
             return "poco"
-        if pos == self.wumpus:
+        if self.wumpus_vivo and pos == self.wumpus:
             return "wumpus"
         return None

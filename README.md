@@ -69,6 +69,7 @@ da tela.
 
 - `F`: liga/desliga o modo tela cheia
 - `ESPAÇO`: pausa/retoma o agente
+- `A`: tenta disparar a flecha contra um Wumpus suspeito/alinhado
 - `R`: reinicia o jogo com um novo mapa (se `--semente` foi usado, a
   semente é incrementada em 1 a cada reinício, de forma previsível)
 - `ESC` ou fechar a janela: encerra o programa
@@ -96,6 +97,10 @@ Com base nessas percepções, o agente atualiza sua **base de conhecimento**
 e decide o próximo movimento usando **busca em largura (BFS)**, andando
 sempre por células que ele já considera seguras. O agente **nunca se move
 de forma aleatória**.
+
+Além disso, o projeto inclui o uso da **flecha** do Wumpus: quando o agente
+identifica um alvo suspeito confiável e alinhado, ele pode disparar para
+eliminar o Wumpus, fazendo o cheiro desaparecer do ambiente.
 
 ### Regras de inferência usadas
 
@@ -187,7 +192,8 @@ Garantias da geração:
   um caminho até o ouro e de volta que o agente consegue inferir como
   seguro, então a mensagem de "bloqueado" não deve ocorrer em condições
   normais — ela existe apenas como salvaguarda para não travar o programa.
-- Não há mecanismo de flecha, combate ou Wumpus móvel (fora do escopo).
+- O Wumpus pode ser eliminado com uma flecha quando o agente identifica um
+  alvo alinhado e confiável.
 - A inferência é local (apenas vizinhos diretos), sem lógica proposicional
   mais avançada (ex.: combinação de múltiplas pistas de células distantes).
 
@@ -197,7 +203,6 @@ Garantias da geração:
   reduzir suspeitas (ex.: lógica proposicional completa).
 - Permitir que o agente arrisque uma célula suspeita quando não houver
   alternativa, calculando probabilidades.
-- Adicionar flecha para eliminar o Wumpus.
 - Permitir múltiplos itens de ouro ou múltiplos Wumpus.
 - Salvar estatísticas de várias execuções para comparar desempenho.
 

@@ -24,6 +24,9 @@ class Agente:
         self.ultima_acao = "Inicio"
         self.ultimas_percepcoes = {"brisa": False, "cheiro": False, "brilho": False}
 
+        # Permite pedir um disparo manual pela interface (tecla A)
+        self.pedir_disparo = False
+
         # Marca a celula inicial como visitada
         self.base.marcar_visitada(self.posicao)
 
@@ -50,7 +53,14 @@ class Agente:
             return False
 
         # 3) Decide o que fazer a seguir
-        self._decidir_proxima_acao()
+        acao = self._decidir_proxima_acao()
+
+        if acao == "disparo":
+            self._processar_percepcoes_atuais()
+            return self._verificar_fim_de_jogo()
+
+        if acao == "plano":
+            return True
 
         # Se mesmo apos decidir nao ha plano, o agente esta bloqueado
         if not self.plano and not self.base.jogo_finalizado:
@@ -61,6 +71,24 @@ class Agente:
             return False
 
         return True
+
+    def solicitar_disparo(self):
+        """Pede que o agente tente disparar a flecha no proximo passo."""
+        self.pedir_disparo = True
+
+    def tentar_disparo_manual(self):
+        """
+        Tenta um disparo imediato, usado pela interface (tecla A).
+        Se o disparo acontecer, atualiza a percepcao atual logo em seguida.
+        """
+        if self.base.jogo_finalizado:
+            return False
+        self.solicitar_disparo()
+        disparou = self._tentar_disparo_inteligente(manual=True)
+        if disparou:
+            self._processar_percepcoes_atuais()
+            self._verificar_fim_de_jogo()
+        return disparou
 
     # ------------------------------------------------------------------
     # PERCEPCAO E ATUALIZACAO DA BASE DE CONHECIMENTO
@@ -147,7 +175,12 @@ class Agente:
                 self.plano = caminho[1:]
                 self.ultima_acao = "Retornando ao inicio"
                 self.base.registrar_log("Decisao: retornar ao inicio pelo caminho seguro.")
-            return
+                return "plano"
+            return None
+
+        # Se houver uma flecha disponivel e um alvo confiavel, tenta disparar.
+        if self._tentar_disparo_inteligente():
+            return "disparo"
 
         # Ainda explorando: procura a celula segura mais proxima ainda nao visitada
         caminho = encontrar_celula_segura_nao_visitada(
@@ -158,6 +191,70 @@ class Agente:
             destino = caminho[-1]
             self.ultima_acao = f"Explorando ate {destino}"
             self.base.registrar_log(f"Decisao: explorar ate {destino} (caminho seguro).")
+            return "plano"
+
+        return None
+
+    def _direcao_entre(self, origem, destino):
+        """Retorna a direcao em linha reta entre duas posicoes alinhadas."""
+        if origem[0] == destino[0]:
+            if destino[1] > origem[1]:
+                return "direita"
+            if destino[1] < origem[1]:
+                return "esquerda"
+        if origem[1] == destino[1]:
+            if destino[0] > origem[0]:
+                return "baixo"
+            if destino[0] < origem[0]:
+                return "cima"
+        return None
+
+    def _tentar_disparo_inteligente(self, manual=False):
+        """
+        Tenta usar a flecha quando houver um unico alvo suspeito alinhado.
+        Retorna True se houve disparo, False caso contrario.
+        """
+        if self.base.flechas <= 0 or not self.ambiente.wumpus_vivo:
+            self.pedir_disparo = False
+            return False
+
+        alvos = []
+        for suspeita in sorted(self.base.suspeitas_wumpus):
+            direcao = self._direcao_entre(self.posicao, suspeita)
+            if direcao is not None:
+                alvos.append((direcao, suspeita))
+
+        if len(alvos) != 1:
+            if manual:
+                if not alvos:
+                    self.base.registrar_log("Disparo pedido, mas nao ha alvo alinhado.")
+                else:
+                    self.base.registrar_log("Disparo pedido, mas ha mais de um alvo alinhado.")
+                self.ultima_acao = "Disparo indisponivel"
+            self.pedir_disparo = False
+            return False
+
+        direcao, alvo = alvos[0]
+        if not self.base.usar_flecha():
+            self.pedir_disparo = False
+            return False
+
+        acertou, posicao_acertada = self.ambiente.disparar_flecha(self.posicao, direcao)
+        self.pedir_disparo = False
+
+        if acertou and posicao_acertada is not None:
+            self.base.wumpus_eliminado = True
+            self.base.marcar_segura(posicao_acertada)
+            self.base.registrar_log(
+                f"Flecha disparada para {direcao} em direcao a {alvo} e Wumpus eliminado em {posicao_acertada}."
+            )
+            self.ultima_acao = f"Disparo: Wumpus eliminado em {posicao_acertada}"
+        else:
+            self.base.registrar_log(
+                f"Flecha disparada para {direcao} em direcao a {alvo}, mas nao encontrou o Wumpus."
+            )
+            self.ultima_acao = f"Disparo: erro para {direcao}"
+        return True
 
     # ------------------------------------------------------------------
     # MOVIMENTACAO E FIM DE JOGO

@@ -171,6 +171,11 @@ class Interface:
                 if pos == agente.posicao:
                     self._desenhar_agente(rect)
 
+                # Se o Wumpus foi eliminado, mostra a "carcaca" na celula onde
+                # ele morreu, para evidenciar o uso da flecha.
+                if not ambiente.wumpus_vivo and pos == ambiente.posicao_wumpus_morto:
+                    self._desenhar_wumpus_morto(rect)
+
                 # Mostra coordenadas pequenas no canto da celula (ajuda na apresentacao)
                 texto_pos = self.fonte_pequena.render(f"{linha},{coluna}", True, (255, 255, 255))
                 texto_pos.set_alpha(90)
@@ -260,6 +265,18 @@ class Interface:
         pygame.draw.circle(self.tela, (30, 0, 0), (cx - raio // 2, cy - 1), max(1, olho_raio // 2))
         pygame.draw.circle(self.tela, (30, 0, 0), (cx + raio // 2, cy - 1), max(1, olho_raio // 2))
 
+    def _desenhar_wumpus_morto(self, rect):
+        """Desenha um Wumpus abatido, em tons acinzentados, para marcar o acerto."""
+        cx, cy = rect.center
+        t = rect.width
+        raio = t // 4
+
+        pygame.draw.circle(self.tela, (90, 90, 100), (cx, cy), raio)
+        pygame.draw.line(self.tela, (210, 210, 220), (cx - raio // 2, cy - raio // 2), (cx + raio // 2, cy + raio // 2), 2)
+        pygame.draw.line(self.tela, (210, 210, 220), (cx - raio // 2, cy + raio // 2), (cx + raio // 2, cy - raio // 2), 2)
+        pygame.draw.circle(self.tela, (160, 160, 170), (cx - raio // 2, cy - 1), max(1, raio // 4))
+        pygame.draw.circle(self.tela, (160, 160, 170), (cx + raio // 2, cy - 1), max(1, raio // 4))
+
     def _desenhar_poco_mini(self, rect):
         """Desenha um pequeno simbolo de ondas (~) representando um poço suspeito."""
         cx, cy = rect.center
@@ -313,6 +330,8 @@ class Interface:
             f"Ultima acao: {agente.ultima_acao}",
             f"Ouro encontrado: {'Sim' if base.ouro_encontrado else 'Nao'}",
             f"Modo retorno: {'Sim' if base.modo_retorno else 'Nao'}",
+            f"Flechas disponiveis: {base.flechas}",
+            f"Wumpus vivo: {'Sim' if ambiente.wumpus_vivo else 'Nao'}",
         ]
         y = self._desenhar_card_texto(x0 + margem, y, largura_card, "STATUS DO AGENTE", linhas_status)
         y += 12
@@ -386,6 +405,7 @@ class Interface:
             ("Seguras", len(base.seguras), COR_SEGURA),
             ("Suspeitas de poço", len(base.suspeitas_poco), COR_SUSPEITA_POCO),
             ("Suspeitas de Wumpus", len(base.suspeitas_wumpus), COR_SUSPEITA_WUMPUS),
+            ("Flechas", base.flechas, COR_DESTAQUE),
         ]
         altura_conteudo = len(itens) * 26
         altura = 8 + self.fonte_titulo.get_height() + 4 + 8 + altura_conteudo + 8

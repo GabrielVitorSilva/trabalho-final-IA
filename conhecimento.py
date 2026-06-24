@@ -17,6 +17,12 @@ class BaseConhecimento:
         self.seguras.add(posicao_inicial)
         self.posicao_inicial = posicao_inicial
 
+        # O agente comeca com uma unica flecha, como no Wumpus classico
+        self.flechas = 1
+
+        # Marca se o Wumpus ja foi eliminado
+        self.wumpus_eliminado = False
+
         # Lista (log) com o historico de acoes e percepcoes, na ordem em que ocorreram
         self.log = []
 
@@ -66,3 +72,10 @@ class BaseConhecimento:
 
     def empilhar_caminho(self, pos):
         self.caminho_percorrido.append(pos)
+
+    def usar_flecha(self):
+        """Consome uma flecha, se houver alguma disponivel."""
+        if self.flechas <= 0:
+            return False
+        self.flechas -= 1
+        return True

@@ -8,9 +8,11 @@ from busca import vizinhos, bfs_caminho
 
 
 class Ambiente:
-    def __init__(self, tamanho=4, num_pocos=3, semente=None):
+    def __init__(self, tamanho=4, num_pocos=3, semente=None, num_wumpus=1, wumpus_movel=False):
         self.tamanho = tamanho
         self.num_pocos = num_pocos
+        self.num_wumpus = max(1, num_wumpus)
+        self.wumpus_movel = wumpus_movel
         self.rng = random.Random(semente)
 
         # Gera o mundo repetidamente até encontrar um que seja valido (solucionavel)
@@ -39,16 +41,20 @@ class Ambiente:
         # Sorteia a posicao do ouro
         self.ouro = todas_celulas.pop()
 
-        # Sorteia a posicao do Wumpus (nao pode ser a inicial nem o ouro,
-        # e nao pode ser vizinho da posicao inicial, para o inicio ser seguro)
+        # Sorteia as posicoes dos Wumpus (nao podem ser a inicial nem o ouro,
+        # e nao podem ser vizinhos da posicao inicial, para o inicio ser seguro)
         vizinhos_inicio = set(vizinhos(self.posicao_inicial, tamanho))
         candidatos_wumpus = [c for c in todas_celulas if c not in vizinhos_inicio]
-        if not candidatos_wumpus:
-            candidatos_wumpus = todas_celulas
-        self.wumpus = candidatos_wumpus[0]
-        todas_celulas.remove(self.wumpus)
-        self.wumpus_vivo = True
-        self.posicao_wumpus_morto = None
+        if len(candidatos_wumpus) < self.num_wumpus:
+            candidatos_wumpus = list(todas_celulas)
+        self.rng.shuffle(candidatos_wumpus)
+        qtd_wumpus = min(self.num_wumpus, len(candidatos_wumpus))
+        self.wumpus_posicoes = set(candidatos_wumpus[:qtd_wumpus])
+        for pos in self.wumpus_posicoes:
+            if pos in todas_celulas:
+                todas_celulas.remove(pos)
+        self.posicoes_wumpus_mortos = set()
+        self._atualizar_resumo_wumpus()
 
         # Sorteia as posicoes dos poços (nao podem ser a inicial nem vizinhas dela)
         candidatos_pocos = [c for c in todas_celulas if c not in vizinhos_inicio]
@@ -56,12 +62,28 @@ class Ambiente:
         qtd = min(self.num_pocos, len(candidatos_pocos))
         self.pocos = set(candidatos_pocos[:qtd])
 
-    def matar_wumpus(self):
-        """Elimina o Wumpus e guarda a posicao onde ele morreu."""
-        if not self.wumpus_vivo:
+    def _atualizar_resumo_wumpus(self):
+        """Mantem atributos de compatibilidade com o restante do projeto."""
+        self.wumpus_vivo = bool(self.wumpus_posicoes)
+        self.wumpus = next(iter(sorted(self.wumpus_posicoes)), None)
+        self.posicao_wumpus_morto = next(iter(sorted(self.posicoes_wumpus_mortos)), None)
+
+    def tem_wumpus_em(self, pos):
+        """Retorna True se houver um Wumpus vivo naquela celula."""
+        return pos in self.wumpus_posicoes
+
+    def matar_wumpus(self, pos=None):
+        """Elimina um Wumpus vivo e registra a posicao onde ele morreu."""
+        if not self.wumpus_posicoes:
             return False
-        self.wumpus_vivo = False
-        self.posicao_wumpus_morto = self.wumpus
+        alvo = pos
+        if alvo is None:
+            alvo = next(iter(sorted(self.wumpus_posicoes)))
+        if alvo not in self.wumpus_posicoes:
+            return False
+        self.wumpus_posicoes.remove(alvo)
+        self.posicoes_wumpus_mortos.add(alvo)
+        self._atualizar_resumo_wumpus()
         return True
 
     def disparar_flecha(self, origem, direcao):
@@ -87,9 +109,43 @@ class Ambiente:
             c += dc
             if not (0 <= l < self.tamanho and 0 <= c < self.tamanho):
                 return False, None
-            if self.wumpus_vivo and (l, c) == self.wumpus:
-                self.matar_wumpus()
+            if (l, c) in self.wumpus_posicoes:
+                self.matar_wumpus((l, c))
                 return True, (l, c)
+
+    def mover_wumpus(self, posicao_agente=None):
+        """
+        Move cada Wumpus vivo uma casa aleatoria, se o modo dinamico estiver
+        ativo. Retorna True se algum Wumpus encostou na posicao do agente.
+        """
+        if not self.wumpus_movel or not self.wumpus_posicoes:
+            return False
+
+        vivos_atuais = list(self.wumpus_posicoes)
+        self.rng.shuffle(vivos_atuais)
+        novos_vivos = set()
+        colidiu_com_agente = False
+
+        for pos in vivos_atuais:
+            if pos in self.posicoes_wumpus_mortos:
+                continue
+            candidatos = []
+            ocupacoes = novos_vivos | (self.wumpus_posicoes - {pos}) | self.pocos | {self.posicao_inicial, self.ouro}
+            for viz in vizinhos(pos, self.tamanho):
+                if viz in ocupacoes:
+                    continue
+                candidatos.append(viz)
+            if candidatos:
+                novo = self.rng.choice(candidatos)
+            else:
+                novo = pos
+            novos_vivos.add(novo)
+            if posicao_agente is not None and novo == posicao_agente:
+                colidiu_com_agente = True
+
+        self.wumpus_posicoes = novos_vivos
+        self._atualizar_resumo_wumpus()
+        return colidiu_com_agente
 
     def _mundo_eh_valido(self):
         """
@@ -109,12 +165,12 @@ class Ambiente:
         for l in range(self.tamanho):
             for c in range(self.tamanho):
                 pos = (l, c)
-                if pos in self.pocos or pos == self.wumpus:
+                if pos in self.pocos or pos in self.wumpus_posicoes:
                     continue
                 # uma celula e "limpa" se nenhum vizinho dela e perigo
                 limpa = True
                 for viz in vizinhos(pos, self.tamanho):
-                    if viz in self.pocos or viz == self.wumpus:
+                    if viz in self.pocos or viz in self.wumpus_posicoes:
                         limpa = False
                         break
                 if limpa:
@@ -145,7 +201,7 @@ class Ambiente:
         for viz in vizinhos(pos, self.tamanho):
             if viz in self.pocos:
                 brisa = True
-            if self.wumpus_vivo and viz == self.wumpus:
+            if viz in self.wumpus_posicoes:
                 cheiro = True
 
         brilho = (pos == self.ouro)
@@ -156,6 +212,6 @@ class Ambiente:
         """Retorna 'poco', 'wumpus' ou None, indicando se a posicao e letal."""
         if pos in self.pocos:
             return "poco"
-        if self.wumpus_vivo and pos == self.wumpus:
+        if pos in self.wumpus_posicoes:
             return "wumpus"
         return None

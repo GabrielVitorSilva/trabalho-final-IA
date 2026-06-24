@@ -38,6 +38,24 @@ animação sutil, só para dar um toque mais "vivo" à apresentação.
 
 ## 4. Como instalar as dependências
 
+Em sistemas recentes como macOS com Python do Homebrew, pode aparecer o
+erro `externally-managed-environment`. Nesse caso, o jeito recomendado é
+criar um ambiente virtual antes de instalar as dependências:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Se quiser sair do ambiente virtual depois:
+
+```bash
+deactivate
+```
+
+Se o seu Python aceitar instalação normal, este comando também funciona:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -51,13 +69,14 @@ python3 main.py
 ### Argumentos opcionais
 
 ```bash
-python main.py --tamanho 6 --pocos 4 --semente 42 --velocidade 3
+python main.py --tamanho 6 --pocos 4 --semente 42 --velocidade 3 --modo normal
 ```
 
 - `--tamanho`: dimensão do tabuleiro NxN (mínimo 4, padrão 4)
 - `--pocos`: quantidade de poços no mapa (padrão 3)
 - `--semente`: semente aleatória, para reproduzir o mesmo mapa (opcional)
 - `--velocidade`: quantos passos o agente executa por segundo (padrão 3)
+- `--modo`: cenário inicial (`normal`, `dois_wumpus`, `movel`, `combo`)
 
 ### Tela cheia
 
@@ -73,6 +92,7 @@ da tela.
 - `R`: reinicia o jogo com um novo mapa (se `--semente` foi usado, a
   semente é incrementada em 1 a cada reinício, de forma previsível)
 - `ESC` ou fechar a janela: encerra o programa
+- Clique nos botões da lateral para trocar de cenário ou disparar a flecha
 
 ## 6. Como alterar o tamanho do mapa
 
@@ -101,6 +121,17 @@ de forma aleatória**.
 Além disso, o projeto inclui o uso da **flecha** do Wumpus: quando o agente
 identifica um alvo suspeito confiável e alinhado, ele pode disparar para
 eliminar o Wumpus, fazendo o cheiro desaparecer do ambiente.
+
+### Barra de cenários
+
+A lateral da interface inclui uma barra de opções para demonstração:
+
+- `Normal`: um Wumpus estático.
+- `2 Wumpus`: dois Wumpus estáticos.
+- `Movel`: um Wumpus que pode se mover entre passos.
+- `Combo`: dois Wumpus móveis.
+- `Atirar`: dispara a flecha manualmente para mostrar a eliminação do Wumpus.
+- `Novo mapa`: recria o cenário atual com nova aleatoriedade.
 
 ### Regras de inferência usadas
 

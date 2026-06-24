@@ -55,6 +55,8 @@ class Interface:
         pygame.init()
         self.tamanho_mundo = tamanho_mundo
         self.tela_cheia = tela_cheia
+        self.botoes_modos = []
+        self.botoes_acoes = []
 
         self._criar_janela()
 
@@ -112,11 +114,11 @@ class Interface:
         return fundo
 
     # ------------------------------------------------------------------
-    def desenhar(self, ambiente, agente):
+    def desenhar(self, ambiente, agente, modo_ativo="normal"):
         self.tempo_animacao += 1
         self.tela.blit(self._fundo, (0, 0))
         self._desenhar_grid(ambiente, agente)
-        self._desenhar_painel(ambiente, agente)
+        self._desenhar_painel(ambiente, agente, modo_ativo)
         pygame.display.flip()
 
     # ------------------------------------------------------------------
@@ -173,8 +175,14 @@ class Interface:
 
                 # Se o Wumpus foi eliminado, mostra a "carcaca" na celula onde
                 # ele morreu, para evidenciar o uso da flecha.
-                if not ambiente.wumpus_vivo and pos == ambiente.posicao_wumpus_morto:
+                if pos in getattr(ambiente, "posicoes_wumpus_mortos", set()):
                     self._desenhar_wumpus_morto(rect)
+
+                # Nos cenarios de demostracao, revelamos os Wumpus vivos para
+                # deixar a movimentacao e os multiplos alvos mais visiveis.
+                if getattr(ambiente, "wumpus_movel", False) or len(getattr(ambiente, "wumpus_posicoes", [])) > 1:
+                    if pos in getattr(ambiente, "wumpus_posicoes", set()) and pos != agente.posicao:
+                        self._desenhar_wumpus_real(rect)
 
                 # Mostra coordenadas pequenas no canto da celula (ajuda na apresentacao)
                 texto_pos = self.fonte_pequena.render(f"{linha},{coluna}", True, (255, 255, 255))
@@ -277,6 +285,29 @@ class Interface:
         pygame.draw.circle(self.tela, (160, 160, 170), (cx - raio // 2, cy - 1), max(1, raio // 4))
         pygame.draw.circle(self.tela, (160, 160, 170), (cx + raio // 2, cy - 1), max(1, raio // 4))
 
+    def _desenhar_wumpus_real(self, rect):
+        """Desenha um Wumpus vivo com estilo mais forte para os cenarios de demo."""
+        cx, cy = rect.center
+        t = rect.width
+        raio = t // 3
+        superficie = pygame.Surface((raio * 2 + 8, raio * 2 + 8), pygame.SRCALPHA)
+        centro = (raio + 4, raio + 4)
+        pygame.draw.circle(superficie, (175, 35, 55, 210), centro, raio)
+        pygame.draw.circle(superficie, (255, 90, 110, 200), centro, raio, 2)
+        pygame.draw.line(superficie, (255, 220, 120, 220), (centro[0] - raio // 2, centro[1] - 2), (centro[0] - 1, centro[1] - 2), 2)
+        pygame.draw.line(superficie, (255, 220, 120, 220), (centro[0] + 1, centro[1] - 2), (centro[0] + raio // 2, centro[1] - 2), 2)
+        pygame.draw.polygon(
+            superficie,
+            (110, 20, 25, 220),
+            [(centro[0] - raio // 2, centro[1] - raio), (centro[0] - raio // 4, centro[1] - raio - 6), (centro[0], centro[1] - raio)],
+        )
+        pygame.draw.polygon(
+            superficie,
+            (110, 20, 25, 220),
+            [(centro[0] + raio // 2, centro[1] - raio), (centro[0] + raio // 4, centro[1] - raio - 6), (centro[0], centro[1] - raio)],
+        )
+        self.tela.blit(superficie, (cx - (raio + 4), cy - (raio + 4)))
+
     def _desenhar_poco_mini(self, rect):
         """Desenha um pequeno simbolo de ondas (~) representando um poço suspeito."""
         cx, cy = rect.center
@@ -293,7 +324,17 @@ class Interface:
     # ------------------------------------------------------------------
     # PAINEL LATERAL
     # ------------------------------------------------------------------
-    def _desenhar_painel(self, ambiente, agente):
+    def tratar_clique(self, posicao_mouse):
+        """Retorna uma acao ou modo clicado na barra lateral."""
+        for botao in self.botoes_modos:
+            if botao["rect"].collidepoint(posicao_mouse):
+                return {"tipo": "modo", "valor": botao["valor"]}
+        for botao in self.botoes_acoes:
+            if botao["rect"].collidepoint(posicao_mouse):
+                return {"tipo": "acao", "valor": botao["valor"]}
+        return None
+
+    def _desenhar_painel(self, ambiente, agente, modo_ativo):
         base = agente.base
         x0 = self.largura_tela - LARGURA_PAINEL
 
@@ -314,6 +355,10 @@ class Interface:
         self.tela.blit(subtitulo, (x0 + margem, y))
         y += subtitulo.get_height() + 14
 
+        # ---- Card: cenarios e acoes -----------------------------------
+        y = self._desenhar_card_cenarios_e_acoes(x0 + margem, y, largura_card, modo_ativo)
+        y += 12
+
         # ---- Card: percepcoes -----------------------------------------
         p = agente.ultimas_percepcoes
         linhas_percepcoes = [
@@ -331,7 +376,9 @@ class Interface:
             f"Ouro encontrado: {'Sim' if base.ouro_encontrado else 'Nao'}",
             f"Modo retorno: {'Sim' if base.modo_retorno else 'Nao'}",
             f"Flechas disponiveis: {base.flechas}",
-            f"Wumpus vivo: {'Sim' if ambiente.wumpus_vivo else 'Nao'}",
+            f"Wumpus vivos: {len(getattr(ambiente, 'wumpus_posicoes', []))}",
+            f"Modo ativo: {modo_ativo}",
+            f"Wumpus movel: {'Sim' if ambiente.wumpus_movel else 'Nao'}",
         ]
         y = self._desenhar_card_texto(x0 + margem, y, largura_card, "STATUS DO AGENTE", linhas_status)
         y += 12
@@ -380,6 +427,69 @@ class Interface:
             texto = self.fonte.render(nome, True, cor_texto)
             self.tela.blit(texto, (pilula.centerx - texto.get_width() // 2, pilula.centery - texto.get_height() // 2))
             xi += largura_pilula + 8
+
+        return y + altura
+
+    def _desenhar_card_cenarios_e_acoes(self, x, y, largura, modo_ativo):
+        botoes_modos = [
+            ("Normal", "normal"),
+            ("2 Wumpus", "dois_wumpus"),
+            ("Movel", "movel"),
+            ("Combo", "combo"),
+        ]
+        botoes_acoes = [
+            ("Atirar", "atirar"),
+            ("Novo mapa", "novo_mapa"),
+        ]
+
+        altura = 8 + self.fonte_titulo.get_height() + 4 + 8 + 134 + 8
+        rect = pygame.Rect(x, y, largura, altura)
+        pygame.draw.rect(self.tela, COR_PAINEL_CARD, rect, border_radius=10)
+        pygame.draw.rect(self.tela, COR_PAINEL_BORDA, rect, width=1, border_radius=10)
+
+        y_conteudo = self._titulo_card(x, y, largura, "CENARIOS E ACOES")
+
+        nota = self.fonte_pequena.render("Clique para trocar o mundo ou testar a flecha", True, COR_TEXTO_FRACO)
+        self.tela.blit(nota, (x + 12, y_conteudo))
+        y_conteudo += 20
+
+        self.botoes_modos = []
+        self.botoes_acoes = []
+        margem_interna = 12
+        gap = 8
+        col_largura = (largura - margem_interna * 2 - gap) // 2
+        botao_altura = 28
+
+        for idx, (rotulo, valor) in enumerate(botoes_modos):
+            linha = idx // 2
+            coluna = idx % 2
+            bx = x + margem_interna + coluna * (col_largura + gap)
+            by = y_conteudo + linha * (botao_altura + gap)
+            botao = pygame.Rect(bx, by, col_largura, botao_altura)
+            ativo = valor == modo_ativo
+            cor_fundo = COR_DESTAQUE if ativo else (52, 56, 82)
+            cor_texto = (20, 20, 24) if ativo else COR_TEXTO
+            pygame.draw.rect(self.tela, cor_fundo, botao, border_radius=8)
+            pygame.draw.rect(self.tela, COR_PAINEL_BORDA, botao, width=1, border_radius=8)
+            texto = self.fonte_pequena.render(rotulo, True, cor_texto)
+            self.tela.blit(texto, (botao.centerx - texto.get_width() // 2, botao.centery - texto.get_height() // 2))
+            self.botoes_modos.append({"rect": botao, "valor": valor})
+
+        acoes_y = y_conteudo + 2 * (botao_altura + gap) + 4
+        acao_largura = (largura - margem_interna * 2 - gap) // 2
+        for idx, (rotulo, valor) in enumerate(botoes_acoes):
+            bx = x + margem_interna + idx * (acao_largura + gap)
+            by = acoes_y
+            botao = pygame.Rect(bx, by, acao_largura, botao_altura)
+            cor_fundo = (70, 120, 200) if valor == "atirar" else (58, 64, 86)
+            pygame.draw.rect(self.tela, cor_fundo, botao, border_radius=8)
+            pygame.draw.rect(self.tela, COR_PAINEL_BORDA, botao, width=1, border_radius=8)
+            texto = self.fonte_pequena.render(rotulo, True, COR_TEXTO)
+            self.tela.blit(texto, (botao.centerx - texto.get_width() // 2, botao.centery - texto.get_height() // 2))
+            self.botoes_acoes.append({"rect": botao, "valor": valor})
+
+        dica = self.fonte_pequena.render("Atalho A = atirar | R = reiniciar", True, COR_TEXTO_FRACO)
+        self.tela.blit(dica, (x + 12, y + altura - 22))
 
         return y + altura
 
